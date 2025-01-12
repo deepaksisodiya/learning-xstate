@@ -1,21 +1,61 @@
-import { createMachine } from 'xstate';
+import { setup, fromPromise, assign } from 'xstate';
 
-export const machine = createMachine({
-  /** @xstate-layout N4IgpgJg5mDOIC5QBcD2FWwAQEMAOeAdADao4QCWAdlFmhrAMT2ZanmQDaADALqKg8mCsgqoqAkAA9EARgCcAFkIAObooBsKgOwBWADQgAnohWzCugL6XDLbPiLtKNOukyMn1WnawAzHBTEXHySQrAiYhJI0oh6hIqKOtqyGty6WhoATADMhiYIsorcFtY2IFTocJI+DqHCouKSMggAtBp5iG2E3D3cspkKerrDmda2bvYEJGTO3hN14Q1RoM2KmR0IKirxKRp7+wfaYyA1Uz5OkAsRjdGrPRYbKqNlp44zXq4MWGAATj+oPyuSyaiCKxQMxjkRRKpSAA */
-  id: 'todos app',
-  initial: 'loading todos',
+const fetchUser = (userId: string) => {
+  return {
+    name: 'Deepak',
+    userId
+  };
+};
+
+export const userMachine = setup({
+  types: {
+    context: {} as {
+      userId: string;
+      user: object | undefined;
+      error: unknown;
+    }
+  },
+  actors: {
+    fetchUser: fromPromise(async ({ input }) => {
+      const user = await fetchUser(input.userId);
+
+      return user;
+    })
+  }
+}).createMachine({
+  id: 'user',
+  initial: 'idle',
+  context: {
+    userId: '42',
+    user: undefined,
+    error: undefined
+  },
   states: {
-    'loading todos': {
+    idle: {
       on: {
-        'todos loaded': {
-          target: 'todos loaded'
+        FETCH: { target: 'loading' }
+      }
+    },
+    loading: {
+      invoke: {
+        id: 'getUser',
+        src: 'fetchUser',
+        input: ({ context: { userId } }) => ({ userId }),
+        onDone: {
+          target: 'success',
+          actions: assign({ user: ({ event }) => event.output })
         },
-        'loading todos error': {
-          target: 'loading todos error'
+        onError: {
+          target: 'failure',
+          actions: assign({ error: ({ event }) => event.error })
         }
       }
     },
-    'todos loaded': {},
-    'loading todos error': {}
+    success: {},
+    failure: {
+      on: {
+        RETRY: { target: 'loading' }
+      }
+    }
   }
 });
